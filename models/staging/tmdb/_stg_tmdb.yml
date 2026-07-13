@@ -1,0 +1,142 @@
+version: 2
+
+models:
+  - name: stg_tmdb_movies
+    description: >
+      Scalar movie fields, typed and cleaned, one row per film. Nested arrays
+      are handled in their own staging models so this stays one-row-per-film.
+    columns:
+      - name: film_id
+        description: TMDB film id (primary key).
+        data_tests: [unique, not_null]
+      - name: imdb_id
+        description: IMDb tconst, cleaned (blank → null).
+      - name: title
+        description: Display title.
+      - name: original_title
+        description: Title in the original language.
+      - name: original_language
+        description: ISO-639-1 code of the original language.
+      - name: status
+        description: Release status (Released, Post Production, etc.).
+      - name: release_date
+        description: Primary release date, parsed to DATE from the first 10 chars.
+      - name: runtime
+        description: Runtime in minutes.
+      - name: budget
+        description: Production budget in USD.
+      - name: revenue
+        description: Box office revenue in USD (0 = unknown for many titles).
+      - name: popularity
+        description: TMDB popularity score at time of ingestion.
+      - name: vote_average
+        description: Mean user rating (0–10).
+      - name: vote_count
+        description: Number of user votes.
+      - name: adult
+        description: Adult-content flag.
+      - name: video
+        description: Whether the entry is a video (vs theatrical) release.
+      - name: homepage
+        description: Official homepage URL (blank → null).
+      - name: tagline
+        description: Marketing tagline (blank → null).
+      - name: overview
+        description: Plot synopsis. Source text for the gold thematic embeddings.
+      - name: collection_id
+        description: Parent collection id, parsed from belongs_to_collection JSON.
+      - name: collection_name
+        description: Parent collection name, parsed from belongs_to_collection JSON.
+      - name: poster_path
+        description: TMDB poster path (append to image CDN base to render).
+      - name: backdrop_path
+        description: TMDB backdrop path.
+      - name: source_file
+        description: Originating S3 source file (lineage).
+
+  - name: stg_tmdb_people
+    description: Scalar person fields, typed and cleaned, one row per person.
+    columns:
+      - name: person_id
+        description: TMDB person id (primary key).
+        data_tests: [unique, not_null]
+      - name: imdb_id
+        description: IMDb nconst, cleaned.
+      - name: name
+        description: Person's display name.
+      - name: gender
+        description: TMDB gender code (0 unknown, 1 female, 2 male, 3 non-binary).
+      - name: birthday
+        description: Date of birth (parsed).
+      - name: deathday
+        description: Date of death (parsed, null if living).
+      - name: known_for_department
+        description: Primary department (Acting, Directing, etc.).
+      - name: place_of_birth
+        description: Birthplace (blank → null).
+      - name: popularity
+        description: TMDB popularity score for the person.
+      - name: biography
+        description: Free-text biography.
+      - name: profile_path
+        description: Headshot image path.
+      - name: source_file
+        description: Originating S3 source file (lineage).
+
+  - name: stg_tmdb_credits
+    description: >
+      Cast[] and crew[] exploded and unioned into one long table with a
+      credit_type discriminator. Cast-only fields are null for crew rows and
+      vice versa.
+    columns:
+      - name: credit_id
+        description: TMDB credit id (primary key across cast and crew).
+        data_tests: [unique, not_null]
+      - name: film_id
+        description: Film the credit belongs to.
+        data_tests: [not_null]
+      - name: person_id
+        description: Person the credit refers to.
+      - name: credit_type
+        description: Either 'cast' or 'crew'.
+        data_tests:
+          - accepted_values:
+              values: ['cast', 'crew']
+      - name: character
+        description: Character played (cast only; null for crew).
+      - name: cast_order
+        description: Billing order (cast only).
+      - name: cast_id
+        description: TMDB internal cast id (cast only).
+      - name: department
+        description: Crew department (crew only).
+      - name: job
+        description: Crew job title (crew only).
+      - name: source_file
+        description: Originating S3 source file (lineage).
+
+  - name: stg_tmdb_film_genres
+    description: One row per (film, genre) — explodes movies.genres[].
+    columns:
+      - name: film_id
+        data_tests: [not_null]
+      - name: genre_id
+        data_tests: [not_null]
+      - name: genre_name
+        description: Human-readable genre name.
+
+  - name: stg_tmdb_film_attributes
+    description: >
+      Tall staging of the multi-valued movie attributes (production companies,
+      production countries, spoken languages) that get folded into delimited
+      columns on silver.tmdb_films. One row per (film, attr_type, value).
+    columns:
+      - name: film_id
+        data_tests: [not_null]
+      - name: attr_type
+        description: One of 'company', 'country', 'language'.
+        data_tests:
+          - accepted_values:
+              values: ['company', 'country', 'language']
+      - name: attr_value
+        description: The company name, country ISO, or language english_name.

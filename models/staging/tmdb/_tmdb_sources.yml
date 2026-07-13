@@ -1,0 +1,81 @@
+version: 2
+
+sources:
+  - name: tmdb_bronze
+    database: "{{ var('tmdb_catalog') }}"
+    schema: "{{ var('bronze_schema') }}"
+    description: >
+      **TMDB bronze layer.** Raw tables are written by the Databricks ingestion
+      notebooks (TMDB API pulls landed to S3, then loaded to Delta). The
+      `*_validated` tables are produced by the bronze data-quality step
+      (dedup to latest per id, null/format checks). dbt reads from the
+      validated tables to build the denormalized silver layer. The one
+      exception is `tmdb_movies_raw`, read for its full append-only history
+      to build the SCD2 audience-trends time series.
+    tables:
+      - name: tmdb_movies_validated
+        description: >
+          One row per film — latest validated snapshot. Carries scalar film
+          fields plus nested arrays for genres, production_companies,
+          production_countries, and spoken_languages.
+        columns:
+          - name: id
+            description: TMDB film id.
+          - name: imdb_id
+            description: IMDb tconst for the film (cross-source join key).
+          - name: genres
+            description: Array of {id, name} genre structs.
+          - name: production_companies
+            description: Array of production company structs.
+          - name: spoken_languages
+            description: Array of spoken-language structs.
+
+      - name: tmdb_people_validated
+        description: >
+          One row per person — latest validated snapshot. Scalar biographical
+          fields plus a nested also_known_as array.
+        columns:
+          - name: id
+            description: TMDB person id.
+          - name: imdb_id
+            description: IMDb nconst for the person.
+
+      - name: tmdb_credits_validated
+        description: >
+          One row per film, carrying nested cast[] and crew[] arrays. Exploded
+          and unioned into the flat tmdb_credits silver table.
+        columns:
+          - name: id
+            description: TMDB film id the credits belong to.
+          - name: cast
+            description: Array of cast member structs (credit_id, id, character, order, cast_id).
+          - name: crew
+            description: Array of crew member structs (credit_id, id, department, job).
+
+      - name: tmdb_releases_validated
+        description: One row per film with a nested countries[] array of release/certification records.
+        columns:
+          - name: id
+            description: TMDB film id.
+          - name: countries
+            description: Array of release structs per country (iso, certification, release_date, primary, descriptors).
+
+      - name: tmdb_reviews_validated
+        description: One row per film with a nested results[] array of user reviews.
+        columns:
+          - name: id
+            description: TMDB film id.
+          - name: results
+            description: Array of review structs (id, author, author_details, content, created_at, updated_at, url).
+
+      - name: tmdb_movies_raw
+        description: >
+          **Append-only full history** of movie snapshots — every ingestion run
+          appends a new row stamped with load_ts. NOT deduped. This is the
+          source for the SCD2 audience_trends time series, which needs every
+          historical metric snapshot rather than just the latest.
+        columns:
+          - name: id
+            description: TMDB film id.
+          - name: load_ts
+            description: Ingestion timestamp — the snapshot key for the time series.

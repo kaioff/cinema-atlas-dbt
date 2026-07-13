@@ -1,0 +1,252 @@
+version: 2
+
+models:
+  - name: tmdb_films
+    description: >
+      **Denormalized film table — one row per film.** The primary table the web
+      app reads. Genres, production companies, countries, and languages are
+      folded into pipe-delimited string columns so display queries need no
+      joins. For genre *aggregation* across the catalog use tmdb_film_genres.
+    columns:
+      - name: film_id
+        description: TMDB film id (primary key).
+        data_tests: [unique, not_null]
+      - name: imdb_id
+        description: IMDb tconst — the cross-source join key to IMDb / Wikidata.
+      - name: title
+        description: Display title.
+      - name: original_title
+        description: Title in the original language.
+      - name: original_language
+        description: ISO-639-1 original language code.
+      - name: status
+        description: Release status.
+      - name: release_date
+        description: Primary release date (DATE).
+      - name: runtime
+        description: Runtime in minutes.
+      - name: budget
+        description: Budget in USD.
+      - name: revenue
+        description: Revenue in USD (0 = unknown).
+      - name: popularity
+        description: TMDB popularity score.
+      - name: vote_average
+        description: Mean user rating (0–10).
+      - name: vote_count
+        description: Number of user votes.
+      - name: adult
+        description: Adult-content flag.
+      - name: video
+        description: Video-release flag.
+      - name: homepage
+        description: Official homepage URL.
+      - name: tagline
+        description: Marketing tagline.
+      - name: overview
+        description: Plot synopsis (source for gold thematic embeddings).
+      - name: collection_id
+        description: Parent collection id.
+      - name: collection_name
+        description: Parent collection name.
+      - name: poster_path
+        description: Poster image path.
+      - name: backdrop_path
+        description: Backdrop image path.
+      - name: genres
+        description: "Pipe-delimited genre names, e.g. 'Comedy|Drama|Thriller'. Split on '|' in the app."
+      - name: genre_ids
+        description: Pipe-delimited genre ids, aligned to genres.
+      - name: production_companies
+        description: Pipe-delimited production company names.
+      - name: production_countries
+        description: Pipe-delimited production country ISO codes.
+      - name: spoken_languages
+        description: Pipe-delimited spoken-language english names.
+      - name: source_system
+        description: Lineage — always 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — originating endpoint.
+      - name: loaded_at
+        description: Timestamp this row was materialized by dbt.
+
+  - name: tmdb_credits
+    description: >
+      **Unified cast + crew, one row per credit**, with the person's name and
+      profile_path folded in from tmdb_people. The key denormalization: the
+      graph and film-profile pages read cast/crew *with names and headshots*
+      from a single table, no join. Filter by credit_type to separate cast
+      from crew.
+    columns:
+      - name: credit_id
+        description: TMDB credit id (primary key).
+        data_tests: [unique, not_null]
+      - name: film_id
+        description: Film the credit belongs to.
+        data_tests: [not_null]
+      - name: person_id
+        description: Person the credit refers to.
+      - name: credit_type
+        description: Either 'cast' or 'crew'.
+        data_tests:
+          - accepted_values:
+              values: ['cast', 'crew']
+      - name: person_name
+        description: Person's name, folded in from tmdb_people (no join needed).
+      - name: profile_path
+        description: Headshot path, folded in from tmdb_people.
+      - name: known_for_department
+        description: Person's primary department, folded in.
+      - name: character
+        description: Character played (cast only).
+      - name: cast_order
+        description: Billing order (cast only) — order by this for top-billed cast.
+      - name: cast_id
+        description: TMDB internal cast id (cast only).
+      - name: department
+        description: Crew department (crew only).
+      - name: job
+        description: Crew job (crew only) — e.g. filter job='Director'.
+      - name: source_system
+        description: Lineage — always 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — 'credits'.
+      - name: loaded_at
+        description: Materialization timestamp.
+
+  - name: tmdb_film_genres
+    description: >
+      Thin exploded film-genre bridge, one row per (film, genre). The one
+      normalized table kept — used only for catalog-wide genre aggregation
+      (leaderboards, films-per-genre). Display paths use the delimited genres
+      column on tmdb_films instead.
+    columns:
+      - name: film_id
+        data_tests: [not_null]
+      - name: genre_id
+        data_tests: [not_null]
+      - name: genre_name
+        description: Human-readable genre name.
+      - name: source_system
+        description: Lineage — 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — 'movies'.
+      - name: loaded_at
+        description: Materialization timestamp.
+
+  - name: tmdb_people
+    description: >
+      Standalone person dimension backing person-profile pages. Names and
+      headshots are also folded into tmdb_credits, but this table carries the
+      full biography and life dates that credits doesn't need.
+    columns:
+      - name: person_id
+        description: TMDB person id (primary key).
+        data_tests: [unique, not_null]
+      - name: imdb_id
+        description: IMDb nconst.
+      - name: name
+        description: Display name.
+      - name: gender
+        description: Gender code.
+      - name: birthday
+        description: Date of birth.
+      - name: deathday
+        description: Date of death (null if living).
+      - name: known_for_department
+        description: Primary department.
+      - name: place_of_birth
+        description: Birthplace.
+      - name: popularity
+        description: Popularity score.
+      - name: biography
+        description: Free-text biography.
+      - name: profile_path
+        description: Headshot path.
+      - name: source_system
+        description: Lineage — 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — 'people'.
+      - name: loaded_at
+        description: Materialization timestamp.
+
+  - name: tmdb_reviews
+    description: One row per review — explodes the reviews endpoint results[] and flattens author_details.
+    columns:
+      - name: review_id
+        description: TMDB review id (primary key).
+        data_tests: [unique, not_null]
+      - name: film_id
+        description: Film reviewed.
+        data_tests: [not_null]
+      - name: author
+        description: Review author display name.
+      - name: author_username
+        description: Author username.
+      - name: author_rating
+        description: Author's own rating (0–10, may be null).
+      - name: content
+        description: Review body text.
+      - name: created_at
+        description: Review creation timestamp.
+      - name: updated_at
+        description: Last update timestamp.
+      - name: url
+        description: Canonical review URL.
+      - name: source_system
+        description: Lineage — 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — 'reviews'.
+      - name: loaded_at
+        description: Materialization timestamp.
+
+  - name: tmdb_releases
+    description: One row per (film, country, release_date, certification) — explodes the releases countries[] array.
+    columns:
+      - name: film_id
+        description: Film released.
+        data_tests: [not_null]
+      - name: country_iso
+        description: ISO-3166-1 country code of the release.
+      - name: certification
+        description: Content rating/certification in that country (blank → null).
+      - name: release_date
+        description: Release date in that country (DATE).
+      - name: is_primary
+        description: Whether this is the primary release for the country.
+      - name: descriptors
+        description: Content descriptors array.
+      - name: source_system
+        description: Lineage — 'tmdb'.
+      - name: source_endpoint
+        description: Lineage — 'releases'.
+      - name: loaded_at
+        description: Materialization timestamp.
+
+  - name: tmdb_audience_trends
+    description: >
+      **SCD2 metric time series.** One row per (film, snapshot_ts), read from
+      the full append-only tmdb_movies_raw history so the app can chart how
+      revenue / popularity / votes evolved after release. is_current flags the
+      latest snapshot per film. Full rebuild each run (idempotent).
+    columns:
+      - name: film_id
+        description: TMDB film id.
+        data_tests: [not_null]
+      - name: popularity
+        description: Popularity at this snapshot.
+      - name: vote_average
+        description: Mean rating at this snapshot.
+      - name: vote_count
+        description: Vote count at this snapshot.
+      - name: revenue
+        description: Revenue at this snapshot.
+      - name: budget
+        description: Budget at this snapshot.
+      - name: snapshot_ts
+        description: The load timestamp of this snapshot (the time-series key).
+        data_tests: [not_null]
+      - name: is_current
+        description: True for the most recent snapshot per film.
+      - name: loaded_at
+        description: Materialization timestamp.
