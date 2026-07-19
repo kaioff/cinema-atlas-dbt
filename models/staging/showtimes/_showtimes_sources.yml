@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: movieglu
+    database: workspace
+    schema: bronze
+    tables:
+      - name: movieglu_showtimes_raw
