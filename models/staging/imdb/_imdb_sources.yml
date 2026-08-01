@@ -1,0 +1,11 @@
+version: 2
+sources:
+  - name: imdb
+    database: workspace
+    schema: bronze
+    tables:
+      - name: imdb_basics_validated
+      - name: imdb_ratings_validated
+      - name: imdb_akas_validated
+      - name: imdb_principals_validated
+      - name: imdb_names_validated

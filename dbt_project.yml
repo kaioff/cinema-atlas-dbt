@@ -29,3 +29,5 @@ models:
       +schema: silver_cinema_atlas
       tmdb:
         +tags: ["tmdb"]
+      imdb:
+        +tags: ["imdb"]
