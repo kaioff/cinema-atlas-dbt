@@ -4,5 +4,5 @@ select
     title,
     region,
     language,
-    isOriginalLanguage as is_original_language
+    isOriginalTitle as is_original_title
 from {{ source('imdb', 'imdb_akas_validated') }}
