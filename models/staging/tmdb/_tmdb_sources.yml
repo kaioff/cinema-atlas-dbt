@@ -68,6 +68,18 @@ sources:
           - name: results
             description: Array of review structs (id, author, author_details, content, created_at, updated_at, url).
 
+      - name: tmdb_keywords_validated
+        description: >
+          One row per film with a nested keywords[] array of theme/genre tags
+          from TMDB (e.g. "serial killer", "based on novel or book"). Rolled
+          up into a delimited column on the tmdb_films silver table, used to
+          enrich the semantic search embeddings.
+        columns:
+          - name: id
+            description: TMDB film id.
+          - name: keywords
+            description: Array of {id, name} keyword tag structs.
+
       - name: tmdb_movies_raw
         description: >
           **Append-only full history** of movie snapshots — every ingestion run
